@@ -53,22 +53,9 @@ def getUser(phoneNumber: str, db) -> UserPublic:
     statement = select(User).where(User.phoneNumber == toComparePhoneNumber)
     query = db.exec(statement).first()
 
-# If hit, return UUID
-# If not, return None
+# If hit, return UUID, if not, return None
     if not query:
         return None
-    return query
-
-def getUserFromUUID(uuid: UUID, db):
-
-# Querying UUID and phone number via UUID
-    statement = select(User).where(User.uuid == uuid)
-    query = db.exec(statement).first()
-
-# If hit, return UUID
-# If not, return None
-    if not query:
-        raise None
     return query
     
 def authenticate_user(phoneNumber: str, db):
@@ -77,13 +64,17 @@ def authenticate_user(phoneNumber: str, db):
     user = getUser(phoneNumber, db)
     if not user:
 
-    # Verify id_token with the Firebase. Then call registerUser, verify if registering user is successful
-        newUser = registerUser(phoneNumber, db)
-        return newUser
+        # Verify id_token with the Firebase. Then call registerUser, verify if registering user is successful
+            newUser = registerUser(phoneNumber, db)
+            
+        # If registering user is not successful, return None. If successful, return the new user.
+            if not newUser:
+                return None
+            return newUser
     else:
 
-    # Verify id_token with the Firebase
-        return user
+        # Verify id_token with the Firebase
+            return user
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
@@ -105,10 +96,6 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 def create_session(uuid: str, db):
-
-# Querying for a UUID inside Session table with the UUID parameter
-    statement = select(Session).where(Session.uuid == uuid)
-    res = db.exec(statement).first()
 
 # Writing new JTI and refresh_token 
     jti = secrets.token_hex(24)
@@ -135,10 +122,6 @@ def update_session(refresh_token: str, db):
 # Querying for the refresh_token in the Session table with the refresh_token parameter
     statement = select(Session).where(Session.refresh_token == refresh_token)
     res = db.exec(statement).first()
-
-# If returns None, refresh_token is either rotated or doesn't exist.
-    if res is None:
-        return False
 
 # Writing new JTI and refresh_token
     jti = secrets.token_hex(24)
@@ -183,7 +166,7 @@ def verify_jti(jti: str, db):
     else:
         return None
 
-async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)], db: db.SessionDep):
+async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)], db: db.SessionDep) -> SessionPublic:
     token = credentials.credentials
 
     credentials_exception = HTTPException(
@@ -228,4 +211,4 @@ def registerUser(phoneNumber: str, db) -> UserPublic:
                 
         except IntegrityError as e:
             db.rollback()
-            return False
+            return None
