@@ -67,8 +67,7 @@ async def getClientUser(phoneNumber: str, auth: Annotated[Session, Depends(get_c
 # Querying for user ID
     query = getUser(phoneNumber, db)
 
-# If hit, return queried phone number UUID
-# If not, return HTTP 404
+# If hit, return queried phone number UUID, if not, return HTTP 404
     if not query:
         raise HTTPException(status_code=404, detail="User doesn't exist.")
     return query
