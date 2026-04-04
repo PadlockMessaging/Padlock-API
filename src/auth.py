@@ -74,7 +74,7 @@ def getUser(uid: str, db) -> UserPublic:
 def authorize(id_token: str, db):
 
 # Verify id_token with the Firebase. 
-# Then call getUser, verify if user exists in the database with the phone number that is hashed and salted.
+# Then call getUser, verify if user exists in the database with the firebase UID. If not, create user with firebase UID and phone number.
     decoded = auth.verify_id_token(id_token)
     if not decoded:
         return None
