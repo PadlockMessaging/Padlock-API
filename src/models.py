@@ -30,6 +30,11 @@ class User(SQLModel, table=True):
         nullable=False),
     )
 
+    firebase_uid: str = Field(
+        nullable=False, 
+        unique=True
+    )
+
     phoneNumber: str = Field(
         index=True, 
         unique=True,

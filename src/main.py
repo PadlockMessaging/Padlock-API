@@ -35,6 +35,8 @@ from slowapi.errors import RateLimitExceeded
 limiter = Limiter(key_func=get_remote_address)
 
 FIREBASE = os.getenv("FIREBASE_SECRET")
+cred = credentials.Certificate(FIREBASE)
+firebase_admin.initialize_app(cred)
 
 description = """
 This API is the backbone of the **Padlock Messaging Project**.
@@ -51,15 +53,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @dataclass
-class OAuth2CustomRequestForm:
-    phoneNumber: str = Form(..., description="Your phone number")
+class OAuth2RequestIdToken:
+    id_token: str = Form(..., description="Your ID token")
 
 @dataclass
 class OAuth2RefreshToken:
     refresh_token: str = Form(..., description="Your refresh token")
 
-cred = credentials.Certificate(FIREBASE)
-firebase_admin.initialize_app(cred)
+
 
 @app.get("/api/v1/searchPhoneNumber/{phoneNumber}", tags=["Public Queries"], summary="Grab a user ID", description="*Recipient user ID is required to initiate a WebSocket. You can acquire it here.*")
 async def getClientUser(phoneNumber: str, auth: Annotated[Session, Depends(get_current_user)], db: db.SessionDep) -> UserPublic:
@@ -72,15 +73,15 @@ async def getClientUser(phoneNumber: str, auth: Annotated[Session, Depends(get_c
         raise HTTPException(status_code=404, detail="User doesn't exist.")
     return query
 
-@app.post("/auth/v1/login", tags=["Account Settings"], summary="Login a user", description="*Signing in of a user is handled from here.*")
-async def login_for_access_token(form_data: Annotated[OAuth2CustomRequestForm, Depends()], db: db.SessionDep) -> Token:
+@app.post("/auth/v1/login", tags=["Account Settings"], summary="Sign in a user", description="*Signing in of a user is handled from here.*")
+async def grab_access_token(id_token: Annotated[OAuth2RequestIdToken, Depends()], db: db.SessionDep) -> Token:
 
 # Verify credentials
-    user = authenticate_user(form_data.phoneNumber, db)
+    user = authorize(id_token=id_token.id_token, db=db)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Phone authentication failed! Could be because of wrong code entry or a backend issue.",
+            detail="ID token authentication failed! Could be because of a backend issue.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
