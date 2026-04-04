@@ -19,6 +19,8 @@
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import firebase_admin
+from firebase_admin import credentials, auth
 from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
 from sqlmodel import select, delete
@@ -44,7 +46,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 security = HTTPBearer()
 
-def getUser(phoneNumber: str, db) -> UserPublic:
+def queryUserWithPhoneNumber(phoneNumber: str, db) -> UserPublic:
 
 # Cryptographically verifying the inputted phone number against the database
     regexedPhoneNumber = re.sub(r"\D", "", phoneNumber)
@@ -58,23 +60,36 @@ def getUser(phoneNumber: str, db) -> UserPublic:
         return None
     return query
     
-def authenticate_user(phoneNumber: str, db):
+def getUser(uid: str, db) -> UserPublic:
 
-# Querying via getUser which normally is used for getting User information, to verify if the phoneNumber is good to go
-    user = getUser(phoneNumber, db)
-    if not user:
+# Querying for the user with the phone number that is hashed and salted
+    statement = select(User).where(User.firebase_uid == uid)
+    query = db.exec(statement).first()
 
-        # Verify id_token with the Firebase. Then call registerUser, verify if registering user is successful
-            newUser = registerUser(phoneNumber, db)
-            
-        # If registering user is not successful, return None. If successful, return the new user.
-            if not newUser:
-                return None
-            return newUser
-    else:
+# If hit, return UUID, if not, return None
+    if not query:
+        return None
+    return query
 
-        # Verify id_token with the Firebase
-            return user
+def authorize(id_token: str, db):
+
+# Verify id_token with the Firebase. 
+# Then call getUser, verify if user exists in the database with the phone number that is hashed and salted.
+    decoded = auth.verify_id_token(id_token)
+    if not decoded:
+        return None
+    
+    uid = decoded.get("uid")
+    phone_number = decoded.get("phone_number")
+    user = getUser(uid, db)
+
+    if user is None:
+        newUser = registerUser(firebase_uid = uid, phone_number = phone_number, db=db)
+        if not newUser:
+            return None
+        return newUser
+    
+    return user
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
 
@@ -166,7 +181,8 @@ def verify_jti(jti: str, db):
     else:
         return None
 
-async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)], db: db.SessionDep) -> SessionPublic:
+async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)], db: db.SessionDep) -> UserPublic:
+
     token = credentials.credentials
 
     credentials_exception = HTTPException(
@@ -174,6 +190,7 @@ async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials, 
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         jti = payload.get("jti")
@@ -191,15 +208,15 @@ async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials, 
         raise credentials_exception
     return user.uuid
 
-def registerUser(phoneNumber: str, db) -> UserPublic:
+def registerUser(firebase_uid: str, phone_number: str, db) -> UserPublic:
     with db as db:
         try:
         # Hashing and salting phone number
-            regexedPhoneNumber = re.sub(r"\D", "", phoneNumber)
+            regexedPhoneNumber = re.sub(r"\D", "", phone_number)
             encodedPhoneNumber = regexedPhoneNumber + SALT
             hashedPhoneNumber = hashlib.sha256(encodedPhoneNumber.encode("UTF-8")).hexdigest()
 
-            user = User(phoneNumber=hashedPhoneNumber)
+            user = User(firebase_uid=firebase_uid, phoneNumber=hashedPhoneNumber)
         
         # Writing to the database
             db.add(user)
