@@ -11,12 +11,12 @@ Padlock Messaging, both client and API side, utilizes cryptography.
 
 ### Client side information
 - Information such as contacts, messages and session data are encrypted within SQLCipher databases.
-- SQLCipher databases are secure with a random generated key saved within the operating system's secure keys manager. (e.g Android Keystore, iOS Keychain)
+- SQLCipher databases are secured with a random generated key saved within the operating system's secure keys manager. (e.g Android Keystore, iOS Keychain)
 
 ### Server side information
 
 - User information consists of UUID, phone number, Firebase user ID and registration lock.
-- Phone numbers are salted and hashed with SHA-256 prior registration. Registration locks will Argon2ID for security against brute force attacks incase of a data leak. 
+- Phone numbers are salted and hashed with SHA-256 prior registration. Registration locks are hashed with Argon2ID for security against brute force attacks in case of a data leak.
 - Session information consists of UUID, refresh token, JTI and revocation status.
 - Refresh and JTI tokens rotate every call to the token endpoint to refresh the access token to continue access.
 
