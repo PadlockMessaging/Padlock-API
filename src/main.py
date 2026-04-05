@@ -19,7 +19,7 @@
 from fastapi import FastAPI, HTTPException, Form, Request
 from dataclasses import dataclass
 from sqlmodel import select
-from models import User, UserPublic
+from models import UserPublic
 import db
 from auth import *
 from models import Token
@@ -137,3 +137,22 @@ async def access_token_refresh(request: Request, form_data: Annotated[OAuth2Refr
 # return the token with Token model containing access & refresh tokens and token_type.
     access_token = create_access_token(data=token_data, expires_delta=access_token_expires)
     return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer")
+
+@app.delete("/auth/v1/logout", tags=["Account Settings"], summary="Log out a user", description="*Logging out of a user is handled from here.*")
+async def logout(auth: Annotated[Session, Depends(get_current_user)], db: db.SessionDep):
+# Deleting the session with the JTI from the Session table to log out the user.
+    statement = select(Session.jti).where(Session.uuid == auth)
+    jti = db.exec(statement).first()
+    if jti:
+        statement = select(Session).where(Session.jti == jti)
+        session = db.exec(statement).first()
+        if session:
+            db.delete(session)
+            db.commit()
+            return {"detail": "Successfully logged out."}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Error logging out. Session doesn't exist.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
