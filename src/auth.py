@@ -19,18 +19,14 @@
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import auth
 from jwt.exceptions import InvalidTokenError
-from pwdlib import PasswordHash
 from sqlmodel import select, delete
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from models import User, UserPublic, Session
 import db
-from uuid import UUID
 from dotenv import load_dotenv
-from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlalchemy.exc import IntegrityError
 import hashlib
 import os
@@ -75,7 +71,7 @@ def authorize(id_token: str, db):
 
 # Verify id_token with the Firebase. 
 # Then call getUser, verify if user exists in the database with the firebase UID. If not, create user with firebase UID and phone number.
-    decoded = auth.verify_id_token(id_token)
+    decoded = auth.verify_id_token(id_token, clock_skew_seconds=5)
     if not decoded:
         return None
     
@@ -121,7 +117,6 @@ def create_session(uuid: str, db):
         uuid=uuid,
         jti=jti,
         refresh_token=refresh_token,
-        is_revoked=False
     )
     
 # Writing to the database
@@ -145,7 +140,6 @@ def update_session(refresh_token: str, db):
 # Writing new JTI and refresh_token to the same entry that got queried with the passed refresh_token
     res.jti = jti
     res.refresh_token = refresh_token
-    res.is_revoked = False
     
 # Writing to the database
     db.add(res)

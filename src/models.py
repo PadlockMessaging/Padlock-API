@@ -62,11 +62,6 @@ class Session(SQLModel, table=True):
         nullable=False,
         unique=True
     )
-
-    is_revoked: bool = Field(
-        nullable=True
-    )
-
 class UserPublic(SQLModel, table=False):
     uuid: UUID = Field(
         default_factory=uuid.uuid4,
